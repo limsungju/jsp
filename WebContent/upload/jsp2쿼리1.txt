@@ -1,0 +1,107 @@
+commit;
+
+drop table member;
+create table member (
+userid varchar2(50) not null primary key,
+passwd varchar(64) not null,
+name varchar2(50) not null,
+address varchar2(50),
+tel varchar2(50),
+zipcode varchar2(7),
+address1 varchar2(200),
+address2 varchar2(200),
+join_date date default sysdate
+);
+
+delete from member;
+
+select * from member;
+
+create or replace package pack_encryption_decryption
+is
+function func_encrypt -- 암호화를 위한 함수
+(v_input_string in varchar2, key_data in varchar2:='JSP21234$!')
+return raw;
+function func_decrypt -- 복호화를 위한 함수
+(v_input_string in varchar2, key_data in varchar2:='JSP21234$!')
+return varchar2;
+end pack_encryption_decryption;
+/
+-- 패키지 구현
+create or replace package body pack_encryption_decryption
+is
+function func_encrypt
+(v_input_string in varchar2,
+key_data in varchar2:='JSP21234$!') 
+return raw
+is
+v_original_raw raw(64);
+v_key_data_raw raw(64);
+encryted_raw raw(64);
+begin
+-- input 값을 raw 타입으로 변경
+v_original_raw := utl_i18n.string_to_raw(v_input_string,
+'AL32UTF8');
+--키 또한 raw 타입으로 변경
+v_key_data_raw := utl_i18n.string_to_raw(key_data, 'AL32UTF8');
+encryted_raw := dbms_crypto.encrypt(
+src => v_original_raw,
+typ => dbms_crypto.des_cbc_pkcs5,
+key => v_key_data_raw,
+iv => null);
+return encryted_raw;
+end func_encrypt;
+
+function func_decrypt
+( v_input_string in varchar2,
+key_data in varchar2 := 'JSP21234$!'
+) return varchar2
+is
+v_key_data_raw raw(64);
+decrypted_raw raw(64);
+converted_string varchar2(64);
+begin
+v_key_data_raw := utl_i18n.string_to_raw(key_data, 'AL32UTF8');
+decrypted_raw := dbms_crypto.decrypt(
+src => v_input_string,
+typ => dbms_crypto.des_cbc_pkcs5,
+key => v_key_data_raw,
+iv => null);
+converted_string := utl_i18n.raw_to_char(decrypted_raw,
+'AL32UTF8');
+return converted_string;
+end func_decrypt;
+end pack_encryption_decryption;
+/
+desc emp;
+create table emp2 as select * from emp where 1=0;
+
+
+create table board(
+num number not null primary key, --글번호
+writer varchar2(50) not null, --이름
+subject varchar2(50) not null, --제목
+passwd varchar2(60) not null, --수정삭제용 비밀번호
+reg_date date default sysdate, --날짜
+readcount number default 0, --조회수
+ref number not null, --게시물그룹
+re_step number not null, --출력순서
+re_level number not null, --답변단계
+content clob not null, --본문
+ip varchar2(30) not null, --ip주소
+filename varchar2(200), --첨부파일 이름
+filesize number default 0, --첨부파일 크기
+down number default 0 --다운로드 횟수
+);
+
+create table board_comment (
+comment_num number not null primary key, --댓글 일련번호
+board_num number not null references board(num), --Foreign Key
+writer varchar2(50) not null,
+content clob not null,
+reg_date date default sysdate
+);
+
+
+
+

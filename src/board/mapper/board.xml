@@ -1,0 +1,305 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper
+PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+"http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<!-- board.xml -->
+<mapper namespace="board">
+
+	<!-- 레코드 갯수 -->
+	<select id="count" resultType="int">
+		select count(*) from board
+	</select>
+	
+	<select id="myWriteListcount" resultType="int">
+		select count(*) from board where writer = #{id}
+	</select>
+	
+	
+	
+	<select id="search_count" resultType="int">
+		select count(*) from board
+		<choose>
+			<when test="search_option != 'all' ">
+				where ${search_option} like '%'|| #{keyword} ||'%'
+			</when>
+			<when test="search_option == 'all' ">
+				where writer like '%'|| #{keyword} ||'%'
+					or subject like '%'|| #{keyword} ||'%'
+					or content like '%'|| #{keyword} ||'%'
+			</when>
+		</choose>
+	</select>
+<!-- 댓글 쓰기 -->
+	<insert id="commentAdd">
+		insert into board_comment 
+			(comment_num,board_num,writer,content) values
+		( (select nvl(max(comment_num)+1,1) from board_comment), 
+  		#{board_num}, #{writer}, #{content})
+	</insert>
+<!-- 댓글 목록 -->
+	<select id="commentList" resultType="board.dto.BoardCommentDTO">
+		select 
+			COMMENT_NUM
+			, BOARD_NUM
+			, WRITER
+			, CONTENT
+			, TO_CHAR(REG_DATE, 'YYYY-MM-DD HH24:MI:SS') AS REG_TRANS_DATE
+			, REG_DATE
+		from board_comment
+		where board_num=#{board_num}
+		order by comment_num
+	</select>
+<!-- 원글 쓰기 -->
+	<insert id="insert">
+		insert into board (num,writer,subject,passwd,ref,re_step,
+			re_level,content,ip,filename,filesize, gubun)
+		values
+		( (select nvl(max(num)+1,1) from board), #{writer}, 
+			#{subject, jdbcType=VARCHAR}, #{passwd, jdbcType=VARCHAR},
+			(select nvl(max(num)+1,1) from board), 
+			#{re_step, jdbcType=NUMERIC}, #{re_level, jdbcType=NUMERIC}, #{content, jdbcType=CLOB}, #{ip, jdbcType=VARCHAR}, 
+			#{filename, jdbcType=VARCHAR}, #{filesize, jdbcType=NUMERIC}, #{gubun, jdbcType=NUMERIC})	
+	</insert>
+<!-- 답글쓰기 -->	
+	<insert id="reply">
+		insert into board (num,writer,subject,passwd,ref,re_step,
+			re_level,content,ip,filename,filesize)
+		values
+		( (select nvl(max(num)+1,1) from board), #{writer}, 
+			#{subject}, #{passwd},
+			#{ref}, 
+			#{re_step}, #{re_level}, #{content}, #{ip}, 
+			#{filename}, #{filesize})	
+	</insert>
+	
+	<!-- 답글의 출력 순서 조정 
+같은 게시물 그룹번호의 글들 중에서 입력될 순번 이상의 글들의 re_step을 +1 	
+	-->
+	<insert id="updateStep">
+		update board
+		set re_step=re_step+1
+		where ref=#{ref} and re_step >= #{re_step}
+	</insert>
+
+	<select id="list" resultType="board.dto.BoardDTO">
+select *
+from (
+    select A.*, rownum as rn
+    from (
+			select num,writer,subject,reg_date,readcount,
+				filename,filesize,down,ref,re_step,re_level,
+				(select count(*) from board_comment where board_num=b.num) 
+					comment_count 
+			from board b 
+			
+			order by ref desc, re_step asc
+    ) A
+)
+where rn between #{start} and #{end}
+	</select>
+	
+	<select id="travleList" resultType="board.dto.BoardDTO">
+select *
+from (
+    select A.*, rownum as rn
+    from (
+			select num,writer,subject,reg_date,readcount,
+				filename,filesize,down,ref,re_step,re_level,
+				(select count(*) from board_comment where board_num=b.num) 
+					comment_count 
+					,gubun
+			from board b 
+			where b.gubun = 1
+			order by ref desc, re_step asc
+    ) A
+)
+where rn between #{start} and #{end}
+	</select>
+	
+	<select id="qnaList" resultType="board.dto.BoardDTO">
+select *
+from (
+    select A.*, rownum as rn
+    from (
+			select num,writer,subject,reg_date,readcount,
+				filename,filesize,down,ref,re_step,re_level,
+				(select count(*) from board_comment where board_num=b.num) 
+					comment_count 
+					,gubun
+			from board b 
+			where gubun = 2
+			order by ref desc, re_step asc
+    ) A
+)
+where rn between #{start} and #{end}
+	</select>
+	
+	<select id="searchList" resultType="board.dto.BoardDTO">
+select *
+from (
+    select A.*, rownum as rn
+    from (
+			select num,writer,subject,reg_date,readcount,
+				filename,filesize,down,ref,re_step,re_level,
+				(select count(*) from board_comment where board_num=b.num) 
+					comment_count 
+			from board b 
+			<choose>
+				<when test="search_option != 'all'">
+					where 
+						
+						${search_option} like #{keyword}
+				</when>
+				<otherwise>
+					where 
+						
+						(writer like #{keyword} 
+							or subject like #{keyword} 
+							or content like #{keyword} ) 
+				</otherwise>
+			</choose>
+			order by ref desc, re_step asc
+    ) A
+)
+where rn between #{start} and #{end}
+	</select>	
+	
+	<select id="travleSearchList" resultType="board.dto.BoardDTO">
+select *
+from (
+    select A.*, rownum as rn
+    from (
+			select num,writer,subject,reg_date,readcount,
+				filename,filesize,down,ref,re_step,re_level,
+				(select count(*) from board_comment where board_num=b.num) 
+					comment_count 
+			from board b 
+			<choose>
+				<when test="search_option != 'all'">
+					where 
+						
+						${search_option} like #{keyword}
+						and gubun = 1
+				</when>
+				<otherwise>
+					where (writer like #{keyword} 
+							or subject like #{keyword} 
+							or content like #{keyword} )
+						and gubun = 1	
+							 
+				</otherwise>
+			</choose>
+			order by ref desc, re_step asc
+    ) A
+)
+where rn between #{start} and #{end}
+	</select>
+	
+	<select id="qnaSearchList" resultType="board.dto.BoardDTO">
+select *
+from (
+    select A.*, rownum as rn
+    from (
+			select num,writer,subject,reg_date,readcount,
+				filename,filesize,down,ref,re_step,re_level,
+				(select count(*) from board_comment where board_num=b.num) 
+					comment_count 
+			from board b 
+			<choose>
+				<when test="search_option != 'all'">
+					where ${search_option} like #{keyword} and gubun = 2
+				</when>
+				<otherwise>
+					where (writer like #{keyword} 
+							or subject like #{keyword} 
+							or content like #{keyword} ) and gubun = 2
+				</otherwise>
+			</choose>
+			order by ref desc, re_step asc
+    ) A
+)
+where rn between #{start} and #{end}
+	</select>
+	
+	<select id="myWriteList" resultType="board.dto.BoardDTO">
+		select *
+		from (
+		    select A.*, rownum as rn
+		    from (
+					select num,writer,subject,reg_date,readcount,
+						filename,filesize,down,ref,re_step,re_level,
+						(select count(*) from board_comment where board_num=b.num) 
+							comment_count 
+					from board b 
+					where writer = #{id}
+					
+					order by ref desc, re_step asc
+		    ) A
+		)
+		where rn between #{start} and #{end}
+	</select>
+	
+<!-- 게시물 번호에 해당하는 첨부파일 이름 -->	
+	<select id="getFileName" resultType="String">
+		select filename
+		from board
+		where num=#{num}
+	</select>
+<!-- 다운로드 횟수증가 처리  -->
+	<update id="plusDown">
+		update board set down=down+1 where num=#{num}
+	</update>
+	
+<!-- 조회수증가 처리 -->
+	<update id="plusReadCount">
+		update board set readcount=readcount+1 where num=#{num}
+	</update>
+<!-- 상세화면용 dto 리턴 -->
+	<select id="view" resultType="board.dto.BoardDTO">
+		select * from board where num=#{num}
+	</select>	
+<!-- 비밀번호 체크  -->	
+	<select id="pass_check" resultType="String">
+		select passwd from board 
+		where num=#{num} and passwd=#{passwd} 
+	</select>
+	
+	<!-- 게시물 수정 -->
+	<update id="update">
+		update board
+		set writer=#{writer}, subject=#{subject}, content=#{content},
+			filename=#{filename}, filesize=#{filesize}, down=#{down}
+		where num=#{num}
+	</update>
+<!-- 레코드 삭제(실제로는 숨김 처리) -->	
+	<update id="delete">
+		update board set show='n' where num=#{num}
+	</update>
+	
+	<delete id="deleteBoardData">
+		delete  from board where writer={writer}
+		
+		update board_commend set 
+			writer = '알수없음'
+		where writer = #{writer}
+		
+	</delete>
+	
+	
+</mapper>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
